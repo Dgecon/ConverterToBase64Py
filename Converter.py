@@ -7,6 +7,7 @@ from tkinter.messagebox import showerror, showinfo
 import pyperclip
 import win32clipboard
 import struct
+import datetime
 # === Проверка: Windows? ===
 import sys
 IS_WINDOWS = sys.platform == "win32"
@@ -169,7 +170,7 @@ def one_file_convert(result_label_widget):
             file_data = f.read()
         base64_string = base64.b64encode(file_data).decode("utf-8")
 
-        output_filename = f"{os.path.splitext(os.path.basename(file))[0]}.base64.txt"
+        output_filename = f"{os.path.splitext(os.path.basename(file))[0]}-{datetime.date.today()}.base64.txt"
         output_path = os.path.join(User_path, output_filename)
 
         with open(output_path, "w", encoding="utf-8") as output_file:
@@ -235,7 +236,7 @@ def encode_dir(result_label_widget):
                     file_data = f.read()
                 base64_string = base64.b64encode(file_data).decode("utf-8")
 
-                output_filename = f"{os.path.splitext(file)[0]}.base64.txt"
+                output_filename = f"{os.path.splitext(file)[0]}-{datetime.date.today()}.base64.txt"
                 output_path = os.path.join(User_path, output_filename)
 
                 with open(output_path, "w", encoding="utf-8") as output_file:
