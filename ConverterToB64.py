@@ -20,6 +20,15 @@ if IS_WINDOWS:
     except ImportError:
         print("Библиотека pywin32 не найдена. Установите её: pip install pywin32")
 
+# === Утилита: позиционирование окна рядом с курсором ===
+def place_window_near_cursor(window, width, height, dx=12, dy=12):
+    """
+    Ставит окно рядом с текущим курсором мыши с небольшим сдвигом.
+    """
+    window.update_idletasks()
+    x, y = window.winfo_pointerxy()
+    window.geometry(f"{width}x{height}+{x+dx}+{y+dy}")
+
 # === Глобальные переменные ===
 last_converted_file = None  # Для режима одного файла
 User_path = ""
@@ -33,6 +42,7 @@ directory_label = None
 user_path_label = None
 convert_button = None
 result_label = None
+copy_text_button = None
 
 # === Копирование файлов с помощью pywin32 ===
 def copy_files_to_clipboard(file_paths):
@@ -84,13 +94,17 @@ def copy_files_to_clipboard(file_paths):
         return False
 
 # === Вспомогательная функция: получить список сконвертированных файлов ===
-def get_converted_files():
-    """Возвращает список .base64.txt файлов в User_path."""
-    if not User_path or not os.path.isdir(User_path):
+def get_converted_files(save_dir=None):
+    """
+    Возвращает список .base64.txt файлов в каталоге сохранения.
+    По умолчанию использует выбранный каталог, иначе исходный (path).
+    """
+    target_dir = save_dir or User_path or path
+    if not target_dir or not os.path.isdir(target_dir):
         return []
     return [
-        os.path.join(User_path, f)
-        for f in os.listdir(User_path)
+        os.path.join(target_dir, f)
+        for f in os.listdir(target_dir)
         if f.endswith('.base64.txt')
     ]
 
@@ -127,7 +141,7 @@ def copy_converted_files():
             result_label.config(text="❌ Нет последнего сконвертированного файла", bg="#ffcccc")
             return
     else:
-        # Режим нескольких файлов: копируем все .base64.txt
+        # Режим нескольких файлов: копируем все .base64.txt из каталога сохранения (User_path или исходная path)
         files = get_converted_files()
         if not files:
             result_label.config(text="❌ Нет сконвертированных файлов", bg="#ffcccc")
@@ -148,12 +162,23 @@ def copy_converted_files():
         pyperclip.copy('\n'.join(files))
         result_label.config(text="📋 Пути скопированы (как текст)", bg="#ffeaa7")
 
+def copy_last_converted_text():
+    """
+    Копирует содержимое последнего сконвертированного файла (one file mode) как строку.
+    """
+    if not last_converted_file or not os.path.exists(last_converted_file):
+        result_label.config(text="❌ Нет последнего сконвертированного файла", bg="#ffcccc")
+        return
+    try:
+        with open(last_converted_file, "r", encoding="utf-8") as f:
+            data = f.read()
+        pyperclip.copy(data)
+        result_label.config(text="📋 Содержимое скопировано в буфер обмена", bg="#c8f7c5")
+    except Exception as e:
+        result_label.config(text=f"❌ Не удалось скопировать: {e}", bg="#ffcccc")
+
 def one_file_convert(result_label_widget):
     global progress_bar, last_converted_file  # ← добавили last_converted_file
-    if not User_path:
-        showerror(title="Ошибка", message="Сначала выберите директорию для сохранения!")
-        return
-
     file = filedialog.askopenfilename(
         title="Выберите файл для конвертации",
         filetypes=[("Все файлы", "*.*")]
@@ -170,14 +195,16 @@ def one_file_convert(result_label_widget):
             file_data = f.read()
         base64_string = base64.b64encode(file_data).decode("utf-8")
 
+        save_dir = User_path if User_path else os.path.dirname(file)
         output_filename = f"{os.path.splitext(os.path.basename(file))[0]}-{datetime.date.today()}.base64.txt"
-        output_path = os.path.join(User_path, output_filename)
+        output_path = os.path.join(save_dir, output_filename)
 
         with open(output_path, "w", encoding="utf-8") as output_file:
             output_file.write(base64_string)
 
         # ✅ Сохраняем путь к последнему сконвертированному файлу
         last_converted_file = output_path
+        update_button_states()
 
         progress_bar['value'] = 1
         progress_bar['maximum'] = 1
@@ -202,9 +229,6 @@ def open_directory():
 
 def encode_dir(result_label_widget):
     global progress_bar
-    if not User_path:
-        showerror(title="Ошибка", message="Сначала выберите директорию для сохранения!")
-        return
     if not path:
         showerror(title="Ошибка", message="Сначала выберите исходную директорию!")
         return
@@ -236,8 +260,9 @@ def encode_dir(result_label_widget):
                     file_data = f.read()
                 base64_string = base64.b64encode(file_data).decode("utf-8")
 
+                save_dir = User_path if User_path else path
                 output_filename = f"{os.path.splitext(file)[0]}-{datetime.date.today()}.base64.txt"
-                output_path = os.path.join(User_path, output_filename)
+                output_path = os.path.join(save_dir, output_filename)
 
                 with open(output_path, "w", encoding="utf-8") as output_file:
                     output_file.write(base64_string)
@@ -261,12 +286,15 @@ def encode_dir(result_label_widget):
         progress_bar.pack_forget()
 
 def update_button_states():
+    global copy_text_button
     if current_mode is None:
         return
     if current_mode:
-        convert_button.config(state="normal" if User_path else "disabled")
+        convert_button.config(state="normal")
+        if copy_text_button:
+            copy_text_button.config(state="normal" if last_converted_file else "disabled")
     else:
-        convert_button.config(state="normal" if User_path and path else "disabled")
+        convert_button.config(state="normal" if path else "disabled")
 
 def start_one_file_window():
     global last_converted_file
@@ -288,7 +316,7 @@ def create_ask_window():
     global ask_window
     ask_window = Tk()
     ask_window.title("Конвертер Base64")
-    ask_window.geometry("320x150")
+    place_window_near_cursor(ask_window, 320, 150)
     ask_window.resizable(False, False)
     ask_window.configure(bg="#f9f9f9")
 
@@ -299,53 +327,77 @@ def create_ask_window():
 
 def create_main_window(one_file_mode):
     global main_window, current_mode, progress_bar
-    global editor, directory_label, user_path_label, convert_button, result_label
+    global editor, directory_label, user_path_label, convert_button, result_label, copy_text_button
 
     current_mode = one_file_mode
     main_window = Tk()
     main_window.title("Конвертер файлов в Base64")
-    main_window.geometry("500x530")
+    place_window_near_cursor(main_window, 500, 530)
     main_window.resizable(False, False)
     main_window.configure(bg="#ffffff")
 
     header = Label(main_window, text="Конвертер файлов в Base64", font=("Segoe UI", 16, "bold"), bg="#ffffff", fg="#2c3e50")
     header.pack(pady=(10, 5))
 
-    if not one_file_mode:
+    # Блок: каталог сохранения (опционально)
+    save_frame = ttk.LabelFrame(main_window, text="Куда сохранять", padding=(10, 8))
+    save_frame.pack(anchor=W, padx=20, pady=(5, 10), fill=X)
+    user_path_button = ttk.Button(save_frame, text="📁 Выбрать директорию для сохранения", command=select_user_dir)
+    user_path_button.pack(anchor=W, pady=(0, 5))
+    user_path_label = Label(
+        save_frame,
+        text="Директория для сохранения (необязательно, иначе исходная)",
+        font=("Segoe UI", 9),
+        bg="#ffffff",
+        fg="#7f8c8d"
+    )
+    user_path_label.pack(anchor=W)
+
+    # Блок: источник
+    source_frame = ttk.LabelFrame(main_window, text="Что конвертируем", padding=(10, 8))
+    source_frame.pack(anchor=W, padx=20, pady=(0, 10), fill=X)
+    if one_file_mode:
+        # В режиме одного файла кнопку сразу используем для выбора файла
+        convert_button = ttk.Button(source_frame, text="🔄 Выбрать файл для конвертации", command=lambda: one_file_convert(result_label))
+        convert_button.pack(anchor=W, pady=(0, 5))
+    else:
         instruction = Label(
-            main_window,
-            text="Введите формат файлов (например: docx)\nОставьте пустым — чтобы сконвертировать ВСЕ файлы:",
+            source_frame,
+            text="Введите формат файлов для фильтрации(например: docx)\nОставьте пустым — чтобы сконвертировать ВСЕ файлы:",
             font=("Segoe UI", 10),
             bg="#ffffff",
             fg="#7f8c8d",
             justify=LEFT
         )
-        instruction.pack(anchor=W, padx=20, pady=(0, 5))
+        instruction.pack(anchor=W, pady=(0, 5))
 
-    editor = Text(main_window, height=1, width=15, wrap=WORD, font=("Segoe UI", 10), relief="groove", bd=2)
-    if not one_file_mode:
-        editor.pack(anchor=W, padx=20, pady=(0, 10))
+        editor = Text(source_frame, height=1, width=15, wrap=WORD, font=("Segoe UI", 10), relief="groove", bd=2)
+        editor.pack(anchor=W, pady=(0, 8))
 
-    if not one_file_mode:
-        open_directory_button = ttk.Button(main_window, text="📁 Выбрать исходную директорию", command=open_directory)
-        open_directory_button.pack(anchor=W, padx=20, pady=(0, 5))
-        directory_label = Label(main_window, text="Исходная директория не выбрана", font=("Segoe UI", 9), bg="#ffffff", fg="#e74c3c")
-        directory_label.pack(anchor=W, padx=20, pady=(0, 10))
+        open_directory_button = ttk.Button(source_frame, text="📁 Выбрать исходную директорию", command=open_directory)
+        open_directory_button.pack(anchor=W, pady=(0, 5))
+        directory_label = Label(source_frame, text="Исходная директория не выбрана", font=("Segoe UI", 9), bg="#ffffff", fg="#e74c3c")
+        directory_label.pack(anchor=W, pady=(0, 5))
 
-    user_path_button = ttk.Button(main_window, text="📁 Выбрать директорию для сохранения", command=select_user_dir)
-    user_path_button.pack(anchor=W, padx=20, pady=(0, 5))
-    user_path_label = Label(main_window, text="Директория куда сохраняются файлы", font=("Segoe UI", 9), bg="#ffffff", fg="#e74c3c")
-    user_path_label.pack(anchor=W, padx=20, pady=(0, 10))
+        convert_button = ttk.Button(source_frame, text="🔄 Конвертировать файлы", command=lambda: encode_dir(result_label))
+        convert_button.pack(anchor=W, pady=(5, 0))
 
+    # Блок: операции после конвертации
+    actions_frame = ttk.LabelFrame(main_window, text="Действия с результатом", padding=(10, 8))
+    actions_frame.pack(anchor=W, padx=20, pady=(0, 10), fill=X)
+
+    copy_files_button = ttk.Button(actions_frame, text="📎 Копировать результаты", command=copy_converted_files)
+    copy_files_button.pack(anchor=W, pady=(0, 6))
+
+    # 🔹 КНОПКА: Копировать содержимое последнего файла (только для одного файла)
+    copy_text_button = None
     if one_file_mode:
-        convert_button = ttk.Button(main_window, text="🔄 Конвертировать файл", command=lambda: one_file_convert(result_label))
-    else:
-        convert_button = ttk.Button(main_window, text="🔄 Конвертировать файлы", command=lambda: encode_dir(result_label))
-    convert_button.pack(anchor=W, padx=20, pady=(0, 10))
+        copy_text_button = ttk.Button(actions_frame, text="📄 Копировать содержимое как строку", command=copy_last_converted_text)
+        copy_text_button.pack(anchor=W, pady=(0, 6))
+        copy_text_button.config(state="disabled")
 
-    # 🔹 КНОПКА: Копировать результаты
-    copy_files_button = ttk.Button(main_window, text="📎 Копировать результаты", command=copy_converted_files)
-    copy_files_button.pack(anchor=W, padx=20, pady=(0, 10))
+    copy_to_clipboard_button = ttk.Button(actions_frame, text="📋 Скопировать путь сохранения", command=copy_to_clipboard)
+    copy_to_clipboard_button.pack(anchor=W, pady=(0, 0))
 
     progress_bar = ttk.Progressbar(main_window, orient=HORIZONTAL, length=460, mode='determinate')
     progress_bar.pack(anchor=W, padx=20, pady=(0, 10))
