@@ -21,14 +21,44 @@ if IS_WINDOWS:
         print("Библиотека pywin32 не найдена. Установите её: pip install pywin32")
 
 # === Утилита: позиционирование окна рядом с курсором ===
-def place_window_near_cursor(window, width, height, dx=12, dy=12):
+def place_window_near_cursor(window, width, height, dx=12, dy=12, screen_margin=20):
     """
-    Ставит окно рядом с текущим курсором мыши с небольшим сдвигом.
-    """
-    window.update_idletasks()
-    x, y = window.winfo_pointerxy()
-    window.geometry(f"{width}x{height}+{x+dx}+{y+dy}")
+    Размещает окно рядом с курсором мыши, не допуская выхода за границы экрана.
 
+    :param window: экземпляр Tk/Toplevel
+    :param width: ширина окна
+    :param height: высота окна
+    :param dx, dy: смещение от курсора (в пикселях)
+    :param screen_margin: минимальный отступ от краёв экрана
+    """
+    # Получаем координаты курсора
+    x, y = window.winfo_pointerxy()
+
+    # Получаем размеры экрана
+    screen_width = window.winfo_screenwidth()
+    screen_height = window.winfo_screenheight()
+
+    # Предполагаемая позиция окна
+    win_x = x + dx
+    win_y = y + dy
+
+    # Корректируем, чтобы окно не выходило за правую границу
+    if win_x + width > screen_width - screen_margin:
+        win_x = screen_width - width - screen_margin
+
+    # Корректируем, чтобы окно не выходило за нижнюю границу
+    if win_y + height > screen_height - screen_margin:
+        win_y = screen_height - height - screen_margin
+
+    # Корректируем, чтобы окно не уходило за левую границу
+    if win_x < screen_margin:
+        win_x = screen_margin
+
+    # Корректируем, чтобы окно не уходило за верхнюю границу
+    if win_y < screen_margin:
+        win_y = screen_margin
+
+    window.geometry(f"{width}x{height}+{win_x}+{win_y}")
 # === Глобальные переменные ===
 last_converted_file = None  # Для режима одного файла
 User_path = ""
@@ -312,11 +342,57 @@ def go_back_to_ask_window(window_to_close):
     window_to_close.destroy()
     create_ask_window()
 
+def show_help_window():
+    """Открывает окно со справкой по использованию программы."""
+    help_win = Toplevel()
+    help_win.title("Справка по программе")
+    help_win.geometry("520x420")
+    help_win.resizable(False, False)
+    help_win.configure(bg="#ffffff")
+
+    # Заголовок
+    Label(help_win, text="Инструкция по использованию", font=("Segoe UI", 14, "bold"), bg="#ffffff").pack(pady=(10, 10))
+
+    # Текст справки
+    help_text = Text(help_win, wrap=WORD, font=("Segoe UI", 10), bg="#ffffff", relief="flat")
+    help_text.pack(padx=20, pady=(0, 10), fill=BOTH, expand=True)
+
+    instructions = """🔹 Режим "Конвертировать один файл"
+1. Нажмите "🔄 Выбрать файл для конвертации".
+2. Выберите любой файл в проводнике.
+3. Программа создаст .base64.txt файл рядом (или в выбранной папке сохранения).
+4. Используйте:
+   - «📎 Копировать результаты» — чтобы скопировать файл в проводник (Ctrl+V).
+   - «📄 Копировать содержимое как строку» — чтобы вставить Base64 в код/чат.
+
+🔹 Режим "Конвертировать несколько файлов"
+1. Укажите формат (например: pdf) или оставьте пустым для всех файлов.
+2. Нажмите "📁 Выбрать исходную директорию".
+3. Нажмите "🔄 Конвертировать файлы".
+4. Результаты сохранятся в указанной папке (или в исходной).
+5. Нажмите «📎 Копировать результаты», чтобы вставить все сконвертированные файлы в другую папку.
+
+🔹 Папка сохранения (опционально)
+- Если не указана — файлы сохраняются в исходной директории.
+- Указав её, вы управляете, куда попадут результаты.
+
+🔹 Советы
+- Имена файлов дополняются датой (например: doc-2025-04-05.base64.txt).
+- Все файлы копируются в формате, понятном Проводнику Windows (требуется pywin32).
+- При ошибке копирования — путь/содержимое копируется как текст.
+"""
+
+    help_text.insert("1.0", instructions)
+    help_text.config(state=DISABLED)  # только для чтения
+
+    # Кнопка закрытия
+    ttk.Button(help_win, text="Закрыть", command=help_win.destroy).pack(pady=(0, 10))
+
 def create_ask_window():
     global ask_window
     ask_window = Tk()
     ask_window.title("Конвертер Base64")
-    place_window_near_cursor(ask_window, 320, 150)
+    place_window_near_cursor(ask_window, 320, 150, screen_margin=300)
     ask_window.resizable(False, False)
     ask_window.configure(bg="#f9f9f9")
 
@@ -332,7 +408,7 @@ def create_main_window(one_file_mode):
     current_mode = one_file_mode
     main_window = Tk()
     main_window.title("Конвертер файлов в Base64")
-    place_window_near_cursor(main_window, 500, 530)
+    place_window_near_cursor(main_window, 500, 530 if one_file_mode else 630, screen_margin=100)
     main_window.resizable(False, False)
     main_window.configure(bg="#ffffff")
 
@@ -420,9 +496,14 @@ def create_main_window(one_file_mode):
 
     copy_to_clipboard_button = ttk.Button(main_window, text="📋 Скопировать путь сохранения", command=copy_to_clipboard)
     copy_to_clipboard_button.pack(anchor=W, padx=20, pady=(0, 10))
+        # Кнопка "Справка"
+    help_button = ttk.Button(main_window, text="❓ Справка", command=show_help_window)
+    help_button.pack(anchor=W, padx=20, pady=(0, 5))
 
+    # Кнопка "Назад"
     back_button = ttk.Button(main_window, text="← Назад", command=lambda: go_back_to_ask_window(main_window))
-    back_button.pack(anchor=W, padx=20, pady=(10, 20))
+    back_button.pack(anchor=W, padx=20, pady=(0, 20))
+
 
     update_button_states()
     main_window.mainloop()
