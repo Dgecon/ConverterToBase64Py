@@ -26,14 +26,13 @@
 Клонируйте репозиторий:
 
 ```bash
-git clone https://github.com/username/base64-file-converter.git
-cd base64-file-converter
+git clone https://github.com/Dgecon/ConverterToBase64Py.git
 ```
 
 Установите зависимости:
 
 ```bash
-pip install pyperclip pywin32
+pip install -r requirements.txt
 ```
 
 ## Запуск
@@ -112,13 +111,6 @@ Ctrl + V
 
 ## Скриншоты
 
-Добавьте сюда скриншоты интерфейса:
+<img width="318" height="180" alt="image" src="https://github.com/user-attachments/assets/69931bd1-bd4e-4fe8-870e-e6cfa1d669b5" />
+<img width="501" height="560" alt="image" src="https://github.com/user-attachments/assets/23c510c9-709d-4d12-a6bc-994761ad488b" />
 
-```text
-docs/images/main-window.png
-docs/images/help-window.png
-```
-
-## Лицензия
-
-Проект распространяется по лицензии MIT.
