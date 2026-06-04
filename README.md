@@ -2,7 +2,7 @@
 
 Графическое приложение на Python для конвертации файлов в строку Base64 с удобным интерфейсом на Tkinter.
 
-![GitHub Release](https://img.shields.io/github/v/release/Dgecon/ConverterToBase64Py)
+![GitHub Release](https://img.shields.io/github/v/release/Dgecon/ConverterToBase64Py)(https://github.com/Dgecon/ConverterToBase64Py/releases/tag/1.0)
 
 ## Возможности
 
